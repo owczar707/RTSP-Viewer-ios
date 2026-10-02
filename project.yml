@@ -1,0 +1,35 @@
+# Projekt Xcode jest generowany z tego pliku przez XcodeGen (https://github.com/yonaskolb/XcodeGen).
+# Lokalnie: `brew install xcodegen && xcodegen generate`, w CI robi to workflow.
+name: RTSPViewer
+options:
+  bundleIdPrefix: com.rtspviewer
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  developmentLanguage: pl
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+targets:
+  RTSPViewer:
+    type: application
+    platform: iOS
+    sources:
+      - path: RTSPViewer
+    settings:
+      base:
+        PRODUCT_NAME: RTSPViewer
+        PRODUCT_BUNDLE_IDENTIFIER: com.rtspviewer.app
+        INFOPLIST_FILE: Config/Info.plist
+        GENERATE_INFOPLIST_FILE: "NO"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_PREVIEWS: "YES"
+        SUPPORTS_MACCATALYST: "NO"
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: "NO"
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: "NO"
+    scheme:
+      gatherCoverageData: false
