@@ -36,6 +36,9 @@ struct PlaybackInfo: Equatable {
     var height = 0
     var framesPerSecond: Double = 0
     var bufferMilliseconds = 0
+    /// Measured speed of the playback clock (1.0 = real time).
+    var clockRate: Double = 0
+    var liveJumps = 0
     var reconnects = 0
     var message: String?
 

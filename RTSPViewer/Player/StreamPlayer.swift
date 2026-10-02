@@ -13,7 +13,6 @@ struct StreamSource {
 final class StreamPlayer: ObservableObject {
     @Published private(set) var state: PlayerState = .idle
     @Published private(set) var info = PlaybackInfo()
-    @Published private(set) var isMuted = false
 
     /// The view that displays the video. It is owned by the player (not by SwiftUI), so it
     /// survives switching between the normal and the fullscreen layout without reconnecting.
@@ -23,7 +22,6 @@ final class StreamPlayer: ObservableObject {
     private static let dataTimeout: CFAbsoluteTime = 8
     private static let stableSessionAge: CFAbsoluteTime = 15
     private static let reconnectDelays: [Double] = [0.5, 1, 2, 3, 5]
-    private static let mutedDefaultsKey = "player.muted"
 
     private let source: StreamSource
     private let queue = DispatchQueue(label: "rtspviewer.player", qos: .userInitiated)
@@ -56,10 +54,6 @@ final class StreamPlayer: ObservableObject {
         let view = VideoDisplayView()
         videoView = view
         pipeline = MediaPipeline(layer: view.displayLayer)
-
-        let muted = UserDefaults.standard.bool(forKey: Self.mutedDefaultsKey)
-        isMuted = muted
-        pipeline.setMuted(muted)
 
         // After a phone call / Siri etc. the audio session has to be activated again.
         interruptionObserver = NotificationCenter.default.addObserver(
@@ -127,12 +121,19 @@ final class StreamPlayer: ObservableObject {
         }
     }
 
-    /// Call on the main thread.
-    func setMuted(_ muted: Bool) {
-        isMuted = muted
-        UserDefaults.standard.set(muted, forKey: Self.mutedDefaultsKey)
+    /// Drops the current session and buffered media and connects again from scratch.
+    func reconnect() {
         queue.async { [self] in
-            pipeline.setMuted(muted)
+            guard isActive else { return }
+            reconnectWork?.cancel()
+            reconnectWork = nil
+            reconnectAttempt = 0
+            hasFatalError = false
+            lastError = nil
+            client?.stop()
+            client = nil
+            pipeline.reset()
+            connect()
         }
     }
 
@@ -300,6 +301,8 @@ final class StreamPlayer: ObservableObject {
         }
         newInfo.framesPerSecond = pipeline.framesPerSecond
         newInfo.bufferMilliseconds = Int((pipeline.bufferedSeconds * 1000).rounded())
+        newInfo.clockRate = pipeline.measuredClockRate
+        newInfo.liveJumps = pipeline.liveJumps
         newInfo.reconnects = reconnectCount
 
         if let lastError, currentState != .live {

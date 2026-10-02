@@ -22,6 +22,8 @@ struct StreamDetailsView: View {
                 LabeledContent("Rozdzielczość", value: player.info.resolutionText)
                 LabeledContent("Klatki/s", value: player.info.framesPerSecondText)
                 LabeledContent("Bufor", value: "\(player.info.bufferMilliseconds) ms")
+                LabeledContent("Tempo zegara", value: String(format: "%.2f×", player.info.clockRate))
+                LabeledContent("Przeskoki do „na żywo”", value: "\(player.info.liveJumps)")
                 LabeledContent("Ponowne połączenia", value: "\(player.info.reconnects)")
             }
 

@@ -31,6 +31,10 @@ final class MediaPipeline {
         static let maximumLag = 12.0
         static let stallIndicatorDelay = 0.6
         static let streamActiveWindow = 1.5
+        /// How often catching up is checked for actually shrinking the delay.
+        static let catchUpCheckInterval = 3.0
+        /// Minimum delay reduction per second of catching up (at 1.5× it should be 0.5 s/s).
+        static let catchUpMinimumProgress = 0.15
         /// Playback rate by excess delay (seconds above the buffer), checked top to bottom.
         static let catchUpRates: [(excess: Double, rate: Double)] = [
             (2.5, 3.0),
@@ -57,10 +61,16 @@ final class MediaPipeline {
     private var lastAudioEnqueue: CFAbsoluteTime = 0
     private var lastVideoFrameTime: Double?
     private var frameDuration: Double = 0.04
+    private var catchUpCheck: (wall: CFAbsoluteTime, lead: Double)?
 
     // Statistics
     private(set) var framesPerSecond: Double = 0
     private(set) var bufferedSeconds: Double = 0
+    /// How fast the playback clock really moved during the last second (diagnostics).
+    private(set) var measuredClockRate: Double = 0
+    /// How many times playback skipped ahead to live instead of catching up.
+    private(set) var liveJumps = 0
+    private var clockSample: (wall: CFAbsoluteTime, clock: Double)?
     private var frameCounter = 0
     private var frameCounterStart: CFAbsoluteTime = 0
 
@@ -119,10 +129,7 @@ final class MediaPipeline {
         framesPerSecond = 0
         frameCounter = 0
         bufferedSeconds = 0
-    }
-
-    func setMuted(_ muted: Bool) {
-        audioRenderer.isMuted = muted
+        measuredClockRate = 0
     }
 
     func handle(_ packet: RTPPacket, kind: MediaKind) {
@@ -178,6 +185,7 @@ final class MediaPipeline {
         let time = currentTime
         let lead = latest - time
         bufferedSeconds = max(0, lead)
+        measureClockRate(time: time, now: now)
 
         let target = audioIsMaster ? Tuning.audioBuffer : max(Tuning.videoBuffer, frameDuration * 1.5)
         let catchUpStart = target + max(Tuning.catchUpMargin, audioIsMaster ? 0 : frameDuration * 2)
@@ -195,14 +203,18 @@ final class MediaPipeline {
             setTime(latest)
             pausedAt = now
         } else if lead > Tuning.maximumLag {
-            // Too far behind to catch up in reasonable time – jump to live. Queued audio
-            // would otherwise be played late, so drop it.
-            audioRenderer.flush()
-            setTime(latest - target)
-            setRate(1.0)
+            // Too far behind to catch up in reasonable time.
+            jumpToLive(latest: latest, target: target)
         } else if rate > 1.0 {
-            // Catching up: slow down step by step as the delay shrinks.
-            setRate(lead <= catchUpStop ? 1.0 : catchUpRate(forExcess: lead - target))
+            if lead <= catchUpStop {
+                setRate(1.0)
+            } else if catchUpIsIneffective(lead: lead, now: now) {
+                // Faster playback isn't shrinking the delay – skip to live instead.
+                jumpToLive(latest: latest, target: target)
+            } else {
+                // Catching up: slow down step by step as the delay shrinks.
+                setRate(catchUpRate(forExcess: lead - target))
+            }
         } else if lead > catchUpStart {
             setRate(catchUpRate(forExcess: lead - target))
         }
@@ -221,6 +233,37 @@ final class MediaPipeline {
         Tuning.catchUpRates.first { excess >= $0.excess }?.rate ?? 1.5
     }
 
+    /// True when, over the last few seconds of fast playback, the delay did not shrink as it should.
+    private func catchUpIsIneffective(lead: Double, now: CFAbsoluteTime) -> Bool {
+        guard let check = catchUpCheck else {
+            catchUpCheck = (wall: now, lead: lead)
+            return false
+        }
+        let elapsed = now - check.wall
+        guard elapsed >= Tuning.catchUpCheckInterval else { return false }
+        catchUpCheck = (wall: now, lead: lead)
+        return check.lead - lead < elapsed * Tuning.catchUpMinimumProgress
+    }
+
+    /// Skips straight to the newest media. Queued audio would otherwise be played late, so drop it.
+    private func jumpToLive(latest: Double, target: Double) {
+        audioRenderer.flush()
+        setTime(latest - target)
+        setRate(1.0)
+        liveJumps += 1
+    }
+
+    private func measureClockRate(time: Double, now: CFAbsoluteTime) {
+        guard let sample = clockSample else {
+            clockSample = (wall: now, clock: time)
+            return
+        }
+        let elapsed = now - sample.wall
+        guard elapsed >= 1 else { return }
+        measuredClockRate = max(0, (time - sample.clock) / elapsed)
+        clockSample = (wall: now, clock: time)
+    }
+
     private var currentTime: Double {
         let seconds = synchronizer.currentTime().seconds
         return seconds.isFinite ? seconds : 0
@@ -228,12 +271,16 @@ final class MediaPipeline {
 
     private func setTime(_ seconds: Double) {
         synchronizer.setRate(Float(rate), time: CMTime(seconds: seconds, preferredTimescale: 90_000))
+        clockSample = nil // a jump would distort the measured clock rate
     }
 
     private func setRate(_ newRate: Double) {
         guard newRate != rate else { return }
         rate = newRate
         synchronizer.rate = Float(newRate)
+        if newRate <= 1.0 {
+            catchUpCheck = nil
+        }
     }
 
     private func didEnqueue(at time: Double, gapThreshold: Double, now: CFAbsoluteTime) {

@@ -85,9 +85,7 @@ struct PlayerScreen: View {
         PlayerOverlay(
             state: player.state,
             isFullscreen: isFullscreen,
-            hasAudio: player.info.hasAudio,
-            isMuted: player.isMuted,
-            onToggleMute: { player.setMuted(!player.isMuted) },
+            onReconnect: { player.reconnect() },
             onToggleFullscreen: { setFullscreen(!isFullscreen) }
         )
     }

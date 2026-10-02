@@ -1,14 +1,11 @@
 import SwiftUI
 
 /// Controls drawn over the video: status badge (top-right) with the phone's battery/network
-/// below it (fullscreen only), mute button (bottom-left, only when the stream has sound)
-/// and fullscreen button (bottom-right).
+/// below it (fullscreen only), reconnect button (bottom-left) and fullscreen button (bottom-right).
 struct PlayerOverlay: View {
     let state: PlayerState
     let isFullscreen: Bool
-    let hasAudio: Bool
-    let isMuted: Bool
-    let onToggleMute: () -> Void
+    let onReconnect: () -> Void
     let onToggleFullscreen: () -> Void
 
     var body: some View {
@@ -24,13 +21,11 @@ struct PlayerOverlay: View {
             }
             Spacer()
             HStack {
-                if hasAudio {
-                    OverlayButton(
-                        systemImage: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
-                        accessibilityLabel: isMuted ? "Włącz dźwięk" : "Wycisz",
-                        action: onToggleMute
-                    )
-                }
+                OverlayButton(
+                    systemImage: "arrow.clockwise",
+                    accessibilityLabel: "Połącz ponownie z kamerą",
+                    action: onReconnect
+                )
                 Spacer()
                 OverlayButton(
                     systemImage: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
