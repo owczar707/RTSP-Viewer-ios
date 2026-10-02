@@ -10,10 +10,10 @@ enum PlaybackPhase: Equatable {
 
 /// Decodes video and audio and drives one shared clock (`AVSampleBufferRenderSynchronizer`):
 ///
-/// * keeps a small jitter buffer (0.3 s video-only, 0.4 s with audio) so playback is smooth,
+/// * keeps a jitter buffer (0.8 s video-only, 0.9 s with audio) so playback is smooth,
 /// * freezes the clock when media stops arriving (stall),
-/// * when delayed media arrives in a burst after a hiccup, plays it at 1.5–2× until the delay
-///   is gone ("catching up") – audio keeps its pitch,
+/// * when delayed media arrives in a burst after a hiccup, plays it at 1.5–3× (faster the
+///   bigger the delay) until the delay is gone ("catching up") – audio keeps its pitch,
 /// * if the delay grows beyond `maximumLag`, jumps straight to the newest media.
 ///
 /// When the camera sends audio, audio is the master stream (it must not have gaps);
@@ -22,16 +22,21 @@ enum PlaybackPhase: Equatable {
 /// Everything except `init` must be called on the player's queue.
 final class MediaPipeline {
     private enum Tuning {
-        static let videoBuffer = 0.3
-        static let audioBuffer = 0.4
+        static let videoBuffer = 0.8
+        static let audioBuffer = 0.9
+        /// Catching up starts when this much more than the buffer is queued…
         static let catchUpMargin = 0.7
+        /// …and ends when the excess drops below this.
         static let catchUpExitMargin = 0.15
         static let maximumLag = 12.0
         static let stallIndicatorDelay = 0.6
-        static let fastRate = 1.5
-        static let fastestRate = 2.0
-        static let fastestRateLag = 4.0
         static let streamActiveWindow = 1.5
+        /// Playback rate by excess delay (seconds above the buffer), checked top to bottom.
+        static let catchUpRates: [(excess: Double, rate: Double)] = [
+            (2.5, 3.0),
+            (1.0, 2.0),
+            (0.0, 1.5),
+        ]
     }
 
     private let synchronizer = AVSampleBufferRenderSynchronizer()
@@ -181,7 +186,7 @@ final class MediaPipeline {
         if rate == 0 {
             // Frozen: resume once enough media is buffered.
             if lead >= target {
-                setRate(lead > catchUpStart ? catchUpRate(for: lead) : 1.0)
+                setRate(lead > catchUpStart ? catchUpRate(forExcess: lead - target) : 1.0)
                 pausedAt = nil
             }
         } else if lead <= 0 {
@@ -195,10 +200,11 @@ final class MediaPipeline {
             audioRenderer.flush()
             setTime(latest - target)
             setRate(1.0)
+        } else if rate > 1.0 {
+            // Catching up: slow down step by step as the delay shrinks.
+            setRate(lead <= catchUpStop ? 1.0 : catchUpRate(forExcess: lead - target))
         } else if lead > catchUpStart {
-            setRate(catchUpRate(for: lead))
-        } else if rate > 1.0 && lead <= catchUpStop {
-            setRate(1.0)
+            setRate(catchUpRate(forExcess: lead - target))
         }
 
         if rate > 1.0 {
@@ -211,8 +217,8 @@ final class MediaPipeline {
         return phase
     }
 
-    private func catchUpRate(for lead: Double) -> Double {
-        lead > Tuning.fastestRateLag ? Tuning.fastestRate : Tuning.fastRate
+    private func catchUpRate(forExcess excess: Double) -> Double {
+        Tuning.catchUpRates.first { excess >= $0.excess }?.rate ?? 1.5
     }
 
     private var currentTime: Double {
