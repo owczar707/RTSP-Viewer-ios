@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Controls drawn over the video: status badge (top-right), mute button (bottom-left,
-/// only when the stream has sound) and fullscreen button (bottom-right).
+/// Controls drawn over the video: status badge (top-right) with the phone's battery/network
+/// below it (fullscreen only), mute button (bottom-left, only when the stream has sound)
+/// and fullscreen button (bottom-right).
 struct PlayerOverlay: View {
     let state: PlayerState
     let isFullscreen: Bool
@@ -12,9 +13,14 @@ struct PlayerOverlay: View {
 
     var body: some View {
         VStack {
-            HStack {
+            HStack(alignment: .top) {
                 Spacer()
-                StatusBadge(state: state)
+                VStack(alignment: .trailing, spacing: 6) {
+                    StatusBadge(state: state)
+                    if isFullscreen {
+                        DeviceStatusView()
+                    }
+                }
             }
             Spacer()
             HStack {
