@@ -38,40 +38,6 @@ Jeśli kamera nie wysyła dźwięku, sprawdź w jej panelu WWW, czy dźwięk jes
 strumienia. W Hikvision i Dahua to ustawienie zwykle jest domyślnie wyłączone dla strumienia
 głównego. Używany format dźwięku widać na ekranie odtwarzacza w wierszu *Dźwięk*.
 
-## Budowanie IPA przez GitHub Actions
-
-1. Utwórz na GitHubie nowe repozytorium i wrzuć do niego **całą zawartość tego folderu**, łącznie
-   z ukrytym katalogiem `.github`. Przykład z wiersza poleceń:
-   ```bash
-   git init
-   git add .
-   git commit -m "RTSP Viewer"
-   git branch -M main
-   git remote add origin https://github.com/<użytkownik>/<repozytorium>.git
-   git push -u origin main
-   ```
-2. Push na `main` uruchamia workflow **Build IPA** (`.github/workflows/build-ipa.yml`). Możesz go
-   też odpalić ręcznie: zakładka *Actions* → *Build IPA* → *Run workflow*.
-3. Po zakończeniu pobierz artefakt **RTSPViewer-unsigned-ipa** ze strony przebiegu. GitHub
-   pakuje go w ZIP, w środku jest plik `RTSPViewer-unsigned.ipa`.
-4. Gdy wypchniesz tag `v*` (np. `git tag v1.0.0 && git push --tags`), IPA zostanie też dołączone
-   do wydania (Release).
-
-Workflow działa na runnerze `macos-26` z Xcode 26. Projekt Xcode jest generowany w locie z
-pliku `project.yml` przez [XcodeGen](https://github.com/yonaskolb/XcodeGen), dlatego plików
-`.xcodeproj` nie ma w repozytorium.
-
-### Instalacja na telefonie
-
-IPA jest **niepodpisane**. Podpiszesz je i zainstalujesz na przykład przez:
-- **Sideloadly** albo **AltStore** (darmowe Apple ID, ważność 7 dni),
-- własny certyfikat deweloperski (płatne konto Apple Developer),
-- **TrollStore**, jeśli Twoja wersja iOS go obsługuje.
-
-Bundle ID to `com.rtspviewer.app`; zmienisz go w `project.yml` (`PRODUCT_BUNDLE_IDENTIFIER`).
-
-Przy pierwszym połączeniu iOS zapyta o zgodę na **dostęp do sieci lokalnej**. Bez niej kamery
-w sieci LAN będą nieosiągalne (Ustawienia › Prywatność i ochrona › Sieć lokalna).
 
 ## Przykładowe adresy RTSP
 
