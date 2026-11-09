@@ -3,7 +3,7 @@
 
 # Build output
 build/
-refresher/target/
+refresher/
 DerivedData/
 Payload/
 *.ipa

@@ -1,9 +1,0 @@
-[Unit]
-Description=Refresh the sideloaded RTSP Viewer app on the iPhone
-Wants=network-online.target
-After=network-online.target
-
-[Service]
-Type=oneshot
-User=claude
-ExecStart=/usr/local/bin/iphone-refresher auto
