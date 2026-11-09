@@ -1,0 +1,11 @@
+[Unit]
+Description=Check every 2 hours whether the iPhone app needs refreshing
+
+[Timer]
+OnBootSec=10min
+OnCalendar=*-*-* 00/2:17:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
